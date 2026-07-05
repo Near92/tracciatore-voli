@@ -4,38 +4,33 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tracciamento Volo in Tempo Reale</title>
-    <!-- CSS di Leaflet per la mappa -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body { font-family: system-ui, sans-serif; margin: 0; padding: 20px; background: #f4f4f9; }
         .search-container { max-width: 500px; margin: 0 auto 20px auto; display: flex; gap: 10px; }
-        input { flex: 1; padding: 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; }
-        button { padding: 12px 20px; background: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; }
+        input { flex: 1; padding: 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; min-width: 0; }
+        button { padding: 12px 20px; background: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; white-space: nowrap; }
         button:hover { background: #0056b3; }
-        #map { height: 550px; width: 100%; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        #map { height: 500px; width: 100%; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
         .info-box { max-width: 500px; margin: 15px auto; padding: 15px; background: white; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); display: none; }
-        .error { color: red; text-align: center; font-weight: bold; margin-top: 10px; }
+        .error { color: red; text-align: center; font-weight: bold; margin-top: 10px; padding: 10px; }
     </style>
 </head>
 <body>
 
     <div class="search-container">
-        <input type="text" id="flightCode" placeholder="Inserisci codice volo (es. AZA204, RYR3113)" />
-        <button onclick="searchFlight()">Traccia Volo</button>
+        <input type="text" id="flightCode" placeholder="Codice volo (es. AZA204, RYR3113)" />
+        <button onclick="searchFlight()">Traccia</button>
     </div>
     <div id="error-msg" class="error"></div>
     <div id="info" class="info-box"></div>
     <div id="map"></div>
 
-    <!-- JS di Leaflet -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // Inizializza la mappa centrata sull'Europa
         const map = L.map('map').setView([42.0, 12.5], 5);
-        
-        // Carica i tasselli della mappa da OpenStreetMap
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
+            attribution: '© OpenStreetMap'
         }).addTo(map);
 
         let planeMarker = null;
@@ -51,23 +46,29 @@
                 return;
             }
 
-            try {
-                // Chiamata all'API pubblica di OpenSky Network
-                const response = await fetch('https://opensky-network.org/api/states/all');
-                const data = await response.json();
-                
-                // Cerca il volo corrispondente nel database dei vettori in volo
-                // Nota: OpenSky usa il callsign aeronautico formattato a 8 caratteri (es. "AZA204  ")
-                const flight = data.states.find(state => state[1].trim() === code);
+            // Mostriamo un messaggio di caricamento
+            errorDiv.style.color = "#555";
+            errorDiv.innerText = "Ricerca in corso...";
 
-                if (flight) {
+            try {
+                // Utilizziamo l'endpoint specifico per singolo callsign, molto più leggero e meno soggetto a blocchi
+                const response = await fetch(`https://opensky-network.org/api/states/all?callsign=${code.padEnd(8, ' ')}`);
+                
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                errorDiv.innerText = ""; // Rimuoviamo il testo di caricamento
+
+                if (data && data.states && data.states.length > 0) {
+                    const flight = data.states[0]; // Prendiamo il primo risultato corrispondente
                     const lat = flight[6];
                     const lon = flight[5];
-                    const alt = flight[7] ? Math.round(flight[7]) + " m" : "Dato non disponibile";
-                    const speed = flight[9] ? Math.round(flight[9] * 3.6) + " km/h" : "Dato non disponibile";
+                    const alt = flight[7] ? Math.round(flight[7]) + " m" : "Non disponibile";
+                    const speed = flight[9] ? Math.round(flight[9] * 3.6) + " km/h" : "Non disponibile";
                     const country = flight[2];
 
-                    // Mostra i dettagli testuali
                     infoDiv.innerHTML = `
                         <h3>Volo ${code}</h3>
                         <p><strong>Paese d'origine:</strong> ${country}</p>
@@ -77,24 +78,24 @@
                     `;
                     infoDiv.style.display = "block";
 
-                    // Aggiorna o crea il marker sulla mappa
                     if (planeMarker) {
                         planeMarker.setLatLng([lat, lon]);
                     } else {
                         planeMarker = L.marker([lat, lon]).addTo(map);
                     }
                     
-                    // Centra la mappa sulla posizione dell'aereo
                     map.setView([lat, lon], 7);
-                    planeMarker.bindPopup(`<b>Volo ${code}</b><br>Quota: ${alt}<br>Velocità: ${speed}`).openPopup();
+                    planeMarker.bindPopup(`<b>Volo ${code}</b><br>Quota: ${alt}`).openPopup();
 
                 } else {
-                    errorDiv.innerText = "Volo non trovato in questo momento. Assicurati che sia attualmente in aria o controlla il codice.";
+                    errorDiv.style.color = "red";
+                    errorDiv.innerText = "Volo non trovato. Il codice potrebbe essere errato o l'aereo non è al momento in volo.";
                     infoDiv.style.display = "none";
                 }
             } catch (err) {
                 console.error(err);
-                errorDiv.innerText = "Errore nel recupero dei dati. Riprova tra pochi istanti.";
+                errorDiv.style.color = "red";
+                errorDiv.innerText = "I server dei dati di volo sono sovraccarichi. Riprova tra qualche secondo.";
             }
         }
     </script>
