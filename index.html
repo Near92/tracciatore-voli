@@ -18,28 +18,24 @@
 
     <div class="container">
         <h2>Radar Voli Live</h2>
-        <p>Inserisci il codice del volo per aprire il tracciamento radar in tempo reale senza blocchi.</p>
+        <p>Inserisci il codice volo per aprire il tracciamento radar ufficiale.</p>
         
-        <input type="text" id="flightCode" placeholder="es. RYR297X o FR1291" />
-        <button onclick="openRadar()">Traccia Volo in Tempo Reale</button>
+        <input type="text" id="flightCode" placeholder="es. RYR297X, FR1291" />
+        <button onclick="openRadar()">Traccia Volo</button>
     </div>
 
     <script>
         function openRadar() {
-            let code = document.getElementById('flightCode').value.trim().toUpperCase();
+            const code = document.getElementById('flightCode').value.trim().toUpperCase();
             
             if (!code) {
                 alert("Per favore, inserisci un codice volo.");
                 return;
             }
 
-            // Se l'utente usa il codice commerciale Ryanair (FR), lo puliamo per FlightRadar
-            if (code.startsWith('FR')) code = code.replace('FR', 'RYR');
-
-            // Genera il link diretto che bypassa i blocchi dei widget
+            // Il codice viene passato esattamente come scritto dall'utente
             const targetUrl = `https://www.flightradar24.com/data/flights/${code}`;
             
-            // Apre istantaneamente una nuova scheda pulita sul browser del telefono
             window.location.href = targetUrl;
         }
     </script>
