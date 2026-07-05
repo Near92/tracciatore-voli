@@ -3,121 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Radar Voli Professionale</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <title>Radar Voli Live</title>
     <style>
-        body { font-family: system-ui, sans-serif; margin: 0; padding: 15px; background: #1a1a24; color: #fff; }
-        .search-container { max-width: 500px; margin: 0 auto 15px auto; display: flex; gap: 10px; }
+        body { font-family: system-ui, sans-serif; margin: 0; padding: 10px; background: #1a1a24; color: #fff; text-align: center; }
+        .search-container { max-width: 500px; margin: 10px auto; display: flex; gap: 10px; padding: 0 10px; }
         input { flex: 1; padding: 12px; border: 1px solid #333; border-radius: 6px; font-size: 16px; background: #2a2a35; color: white; min-width: 0; }
-        button { padding: 12px 20px; background: #00e676; color: #000; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; white-space: nowrap; }
-        button:hover { background: #00b359; }
-        #map { height: 480px; width: 100%; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
-        .info-box { max-width: 500px; margin: 15px auto; padding: 15px; background: #2a2a35; border-radius: 6px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); display: none; border-left: 4px solid #00e676; }
-        .error { color: #ff5252; text-align: center; font-weight: bold; margin-top: 10px; display: none; padding: 10px; background: rgba(255,82,82,0.1); border-radius: 6px; }
-        h3 { margin-top: 0; color: #00e676; }
+        button { padding: 12px 20px; background: #00e676; color: #000; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; }
+        .radar-wrapper { position: relative; width: 100%; height: calc(100vh - 90px); min-height: 500px; margin-top: 10px; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        iframe { width: 100%; height: 100%; border: none; background: #1a1a24; }
     </style>
 </head>
 <body>
 
     <div class="search-container">
-        <input type="text" id="flightCode" placeholder="Codice volo (es. AZ204, FR123)" />
-        <button onclick="searchFlight()">TRACCIA</button>
+        <input type="text" id="flightCode" placeholder="Inserisci volo (es. RYR297X, AZA204)" />
+        <button onclick="trackFlight()">CERCA</button>
     </div>
     
-    <div id="error-msg" class="error"></div>
-    <div id="info" class="info-box"></div>
-    <div id="map"></div>
+    <div class="radar-wrapper">
+        <!-- Il radar parte centrato sull'Europa, pronto a ricevere i comandi dell'utente -->
+        <iframe id="radarFrame" src="https://www.radarbox.com/widget?lat=42.0&lng=12.5&z=5&theme=dark&style=satellite"></iframe>
+    </div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // Inizializzazione mappa scura
-        const map = L.map('map').setView([42.0, 12.5], 5);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            attribution: '© OpenStreetMap & CartoDB'
-        }).addTo(map);
-
-        let planeMarker = null;
-
-        async function searchFlight() {
+        function trackFlight() {
             const code = document.getElementById('flightCode').value.trim().toUpperCase();
-            const errorDiv = document.getElementById('error-msg');
-            const infoDiv = document.getElementById('info');
-            
-            errorDiv.style.display = "none";
+            const frame = document.getElementById('radarFrame');
             
             if (!code) {
-                errorDiv.innerText = "Inserisci un codice volo.";
-                errorDiv.style.display = "block";
+                alert("Per favore, inserisci un codice volo.");
                 return;
             }
 
-            // La tua chiave API integrata direttamente nel codice
-            const apiKey = '8fe16014femsh69b68bd6cb524a6p15c26cjsn671b6d3d51de'; 
-
-            try {
-                const response = await fetch(`https://aerodatabox.p.rapidapi.com/flights/number/${code}`, {
-                    method: 'GET',
-                    headers: {
-                        'x-rapidapi-host': 'aerodatabox.p.rapidapi.com',
-                        'x-rapidapi-key': apiKey
-                    }
-                });
-
-                if (!response.ok) {
-                    if(response.status === 404) throw new Error("Volo non trovato. Potrebbe non essere ancora partito.");
-                    if(response.status === 429) throw new Error("Hai esaurito le richieste gratuite per questo mese o la chiave non è attiva.");
-                    throw new Error(`Errore di risposta del server (${response.status})`);
-                }
-
-                const flights = await response.json();
-                
-                if (flights && flights.length > 0) {
-                    // Prendi l'istanza di volo più recente o quella attualmente attiva
-                    const flight = flights.find(f => f.status === 'Active') || flights[0];
-                    
-                    if (!flight.lastKnownPosition) {
-                        throw new Error("Il volo è stato programmato o è già atterrato, ma non ci sono coordinate live disponibili in questo istante.");
-                    }
-
-                    const lat = flight.lastKnownPosition.latitude;
-                    const lon = flight.lastKnownPosition.longitude;
-                    // Converte i piedi in metri
-                    const alt = flight.lastKnownPosition.altitudeFr ? Math.round(flight.lastKnownPosition.altitudeFr * 0.3048) + " m" : "N/D";
-                    // Converte i nodi in km/h
-                    const speed = flight.lastKnownPosition.groundSpeedKts ? Math.round(flight.lastKnownPosition.groundSpeedKts * 1.852) + " km/h" : "N/D";
-                    
-                    const origin = flight.departure?.airport?.shortName || flight.departure?.airport?.name || "N/D";
-                    const destination = flight.arrival?.airport?.shortName || flight.arrival?.airport?.name || "N/D";
-                    const status = flight.status || "In volo";
-
-                    // Aggiorna scheda dettagli
-                    infoDiv.innerHTML = `
-                        <h3>Volo ${code}</h3>
-                        <p><strong>Tratta:</strong> ${origin} ➔ ${destination}</p>
-                        <p><strong>Stato attuale:</strong> ${status}</p>
-                        <p><strong>Altitudine:</strong> ${alt} | <strong>Velocità:</strong> ${speed}</p>
-                    `;
-                    infoDiv.style.display = "block";
-
-                    // Aggiorna posizione sulla mappa
-                    if (planeMarker) {
-                        planeMarker.setLatLng([lat, lon]);
-                    } else {
-                        planeMarker = L.marker([lat, lon]).addTo(map);
-                    }
-                    
-                    map.setView([lat, lon], 7);
-                    planeMarker.bindPopup(`<b>${code}</b><br>${status}`).openPopup();
-
-                } else {
-                    throw new Error("Nessun dato trovato per questo codice volo.");
-                }
-
-            } catch (err) {
-                infoDiv.style.display = "none";
-                errorDiv.innerText = err.message;
-                errorDiv.style.display = "block";
-            }
+            // Cambia l'indirizzo dell'iframe puntando direttamente al tracciamento in tempo reale del volo inserito
+            frame.src = `https://www.radarbox.com/widget?flight=${code}&theme=dark&style=dark`;
         }
     </script>
 </body>
