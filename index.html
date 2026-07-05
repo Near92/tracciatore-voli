@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tracciamento Volo in Tempo Reale</title>
+    <!-- CSS di Leaflet per la mappa -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { font-family: system-ui, sans-serif; margin: 0; padding: 20px; background: #f4f4f9; }
+        .search-container { max-width: 500px; margin: 0 auto 20px auto; display: flex; gap: 10px; }
+        input { flex: 1; padding: 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; }
+        button { padding: 12px 20px; background: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; }
+        button:hover { background: #0056b3; }
+        #map { height: 550px; width: 100%; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .info-box { max-width: 500px; margin: 15px auto; padding: 15px; background: white; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); display: none; }
+        .error { color: red; text-align: center; font-weight: bold; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+    <div class="search-container">
+        <input type="text" id="flightCode" placeholder="Inserisci codice volo (es. AZA204, RYR3113)" />
+        <button onclick="searchFlight()">Traccia Volo</button>
+    </div>
+    <div id="error-msg" class="error"></div>
+    <div id="info" class="info-box"></div>
+    <div id="map"></div>
+
+    <!-- JS di Leaflet -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Inizializza la mappa centrata sull'Europa
+        const map = L.map('map').setView([42.0, 12.5], 5);
+        
+        // Carica i tasselli della mappa da OpenStreetMap
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        let planeMarker = null;
+
+        async function searchFlight() {
+            const code = document.getElementById('flightCode').value.trim().toUpperCase();
+            const errorDiv = document.getElementById('error-msg');
+            const infoDiv = document.getElementById('info');
+            errorDiv.innerText = "";
+            
+            if (!code) {
+                errorDiv.innerText = "Per favore, inserisci un codice volo.";
+                return;
+            }
+
+            try {
+                // Chiamata all'API pubblica di OpenSky Network
+                const response = await fetch('https://opensky-network.org/api/states/all');
+                const data = await response.json();
+                
+                // Cerca il volo corrispondente nel database dei vettori in volo
+                // Nota: OpenSky usa il callsign aeronautico formattato a 8 caratteri (es. "AZA204  ")
+                const flight = data.states.find(state => state[1].trim() === code);
+
+                if (flight) {
+                    const lat = flight[6];
+                    const lon = flight[5];
+                    const alt = flight[7] ? Math.round(flight[7]) + " m" : "Dato non disponibile";
+                    const speed = flight[9] ? Math.round(flight[9] * 3.6) + " km/h" : "Dato non disponibile";
+                    const country = flight[2];
+
+                    // Mostra i dettagli testuali
+                    infoDiv.innerHTML = `
+                        <h3>Volo ${code}</h3>
+                        <p><strong>Paese d'origine:</strong> ${country}</p>
+                        <p><strong>Altitudine:</strong> ${alt}</p>
+                        <p><strong>Velocità:</strong> ${speed}</p>
+                        <p><strong>Coordinate:</strong> ${lat.toFixed(4)}, ${lon.toFixed(4)}</p>
+                    `;
+                    infoDiv.style.display = "block";
+
+                    // Aggiorna o crea il marker sulla mappa
+                    if (planeMarker) {
+                        planeMarker.setLatLng([lat, lon]);
+                    } else {
+                        planeMarker = L.marker([lat, lon]).addTo(map);
+                    }
+                    
+                    // Centra la mappa sulla posizione dell'aereo
+                    map.setView([lat, lon], 7);
+                    planeMarker.bindPopup(`<b>Volo ${code}</b><br>Quota: ${alt}<br>Velocità: ${speed}`).openPopup();
+
+                } else {
+                    errorDiv.innerText = "Volo non trovato in questo momento. Assicurati che sia attualmente in aria o controlla il codice.";
+                    infoDiv.style.display = "none";
+                }
+            } catch (err) {
+                console.error(err);
+                errorDiv.innerText = "Errore nel recupero dei dati. Riprova tra pochi istanti.";
+            }
+        }
+    </script>
+</body>
+</html>
