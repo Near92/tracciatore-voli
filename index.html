@@ -3,40 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Radar Voli Live</title>
+    <title>Radar Voli Rapido</title>
     <style>
-        body { font-family: system-ui, sans-serif; margin: 0; padding: 10px; background: #1a1a24; color: #fff; text-align: center; }
-        .search-container { max-width: 500px; margin: 10px auto; display: flex; gap: 10px; padding: 0 10px; }
-        input { flex: 1; padding: 12px; border: 1px solid #333; border-radius: 6px; font-size: 16px; background: #2a2a35; color: white; min-width: 0; }
-        button { padding: 12px 20px; background: #00e676; color: #000; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; }
-        .radar-wrapper { position: relative; width: 100%; height: calc(100vh - 90px); min-height: 500px; margin-top: 10px; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
-        iframe { width: 100%; height: 100%; border: none; background: #1a1a24; }
+        body { font-family: system-ui, sans-serif; margin: 0; padding: 30px 15px; background: #1a1a24; color: #fff; text-align: center; }
+        .container { max-width: 450px; margin: 0 auto; background: #2a2a35; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.4); }
+        h2 { margin-top: 0; color: #00e676; font-size: 24px; }
+        p { color: #aaa; font-size: 14px; margin-bottom: 25px; }
+        input { width: 100%; padding: 14px; border: 1px solid #333; border-radius: 8px; font-size: 18px; background: #1a1a24; color: white; box-sizing: border-box; text-align: center; margin-bottom: 15px; }
+        button { width: 100%; padding: 14px; background: #00e676; color: #000; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; text-transform: uppercase; }
+        button:hover { background: #00b359; }
     </style>
 </head>
 <body>
 
-    <div class="search-container">
-        <input type="text" id="flightCode" placeholder="Inserisci volo (es. RYR297X, AZA204)" />
-        <button onclick="trackFlight()">CERCA</button>
-    </div>
-    
-    <div class="radar-wrapper">
-        <!-- Il radar parte centrato sull'Europa, pronto a ricevere i comandi dell'utente -->
-        <iframe id="radarFrame" src="https://www.radarbox.com/widget?lat=42.0&lng=12.5&z=5&theme=dark&style=satellite"></iframe>
+    <div class="container">
+        <h2>Radar Voli Live</h2>
+        <p>Inserisci il codice del volo per aprire il tracciamento radar in tempo reale senza blocchi.</p>
+        
+        <input type="text" id="flightCode" placeholder="es. RYR297X o FR1291" />
+        <button onclick="openRadar()">Traccia Volo in Tempo Reale</button>
     </div>
 
     <script>
-        function trackFlight() {
-            const code = document.getElementById('flightCode').value.trim().toUpperCase();
-            const frame = document.getElementById('radarFrame');
+        function openRadar() {
+            let code = document.getElementById('flightCode').value.trim().toUpperCase();
             
             if (!code) {
                 alert("Per favore, inserisci un codice volo.");
                 return;
             }
 
-            // Cambia l'indirizzo dell'iframe puntando direttamente al tracciamento in tempo reale del volo inserito
-            frame.src = `https://www.radarbox.com/widget?flight=${code}&theme=dark&style=dark`;
+            // Se l'utente usa il codice commerciale Ryanair (FR), lo puliamo per FlightRadar
+            if (code.startsWith('FR')) code = code.replace('FR', 'RYR');
+
+            // Genera il link diretto che bypassa i blocchi dei widget
+            const targetUrl = `https://www.flightradar24.com/data/flights/${code}`;
+            
+            // Apre istantaneamente una nuova scheda pulita sul browser del telefono
+            window.location.href = targetUrl;
         }
     </script>
 </body>
